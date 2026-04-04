@@ -1,7 +1,6 @@
 import os
 from typing import Optional
 
-# from pydantic import BaseModel, Field
 import serpapi
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import tool
@@ -18,39 +17,30 @@ class FlightsInput(BaseModel):
     infants_on_lap: Optional[int] = Field(0, description='Parameter defines the number of infants on lap. Default to 0.')
 
 
-class FlightsInputSchema(BaseModel):
-    params: FlightsInput
-
-
-@tool(args_schema=FlightsInputSchema)
-def flights_finder(params: FlightsInput):
-    '''
-    Find flights using the Google Flights engine.
-
-    Returns:
-        dict: Flight search results.
-    '''
-
+@tool(args_schema=FlightsInput)
+def flights_finder(departure_airport: Optional[str] = None, arrival_airport: Optional[str] = None,
+                   outbound_date: Optional[str] = None, return_date: Optional[str] = None,
+                   adults: Optional[int] = 1, children: Optional[int] = 0,
+                   infants_in_seat: Optional[int] = 0, infants_on_lap: Optional[int] = 0):
+    '''Find flights using the Google Flights engine.'''
     params = {
         'api_key': os.environ.get('SERPAPI_API_KEY'),
         'engine': 'google_flights',
         'hl': 'en',
         'gl': 'us',
-        'departure_id': params.departure_airport,
-        'arrival_id': params.arrival_airport,
-        'outbound_date': params.outbound_date,
-        'return_date': params.return_date,
+        'departure_id': departure_airport,
+        'arrival_id': arrival_airport,
+        'outbound_date': outbound_date,
+        'return_date': return_date,
         'currency': 'USD',
-        'adults': params.adults,
-        'infants_in_seat': params.infants_in_seat,
+        'adults': adults,
+        'infants_in_seat': infants_in_seat,
         'stops': '1',
-        'infants_on_lap': params.infants_on_lap,
-        'children': params.children
+        'infants_on_lap': infants_on_lap,
+        'children': children,
     }
-
     try:
         search = serpapi.search(params)
-        results = search.data['best_flights']
+        return search.data['best_flights']
     except Exception as e:
-        results = str(e)
-    return results
+        return str(e)

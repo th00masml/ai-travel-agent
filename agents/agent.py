@@ -136,6 +136,7 @@ class Agent:
         builder.add_edge('email_sender', END)
         memory = MemorySaver()
         self.graph = builder.compile(checkpointer=memory, interrupt_before=['email_sender'])
+        self._email_llm = ChatOpenAI(model='gpt-4o', temperature=0.1)
 
         print(self.graph.get_graph().draw_mermaid())
 
@@ -148,9 +149,8 @@ class Agent:
 
     def email_sender(self, state: AgentState):
         print('Sending email')
-        email_llm = ChatOpenAI(model='gpt-4o', temperature=0.1)  # Instantiate another LLM
         email_message = [SystemMessage(content=EMAILS_SYSTEM_PROMPT), HumanMessage(content=state['messages'][-1].content)]
-        email_response = email_llm.invoke(email_message)
+        email_response = self._email_llm.invoke(email_message)
         print('Email content:', email_response.content)
 
         message = Mail(from_email=os.environ['FROM_EMAIL'], to_emails=os.environ['TO_EMAIL'], subject=os.environ['EMAIL_SUBJECT'],

@@ -5,8 +5,6 @@ import serpapi
 from langchain.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import tool
 
-# from pydantic import BaseModel, Field
-
 
 class HotelsInput(BaseModel):
     q: str = Field(description='Location of the hotel')
@@ -16,39 +14,31 @@ class HotelsInput(BaseModel):
     adults: Optional[int] = Field(1, description='Number of adults. Default to 1.')
     children: Optional[int] = Field(0, description='Number of children. Default to 0.')
     rooms: Optional[int] = Field(1, description='Number of rooms. Default to 1.')
-    hotel_class: Optional[str] = Field(
-        None, description='Parameter defines to include only certain hotel class in the results. for example- 2,3,4')
+    hotel_class: Optional[str] = Field(None, description='Parameter defines to include only certain hotel class in the results. for example- 2,3,4')
 
 
-class HotelsInputSchema(BaseModel):
-    params: HotelsInput
-
-
-@tool(args_schema=HotelsInputSchema)
-def hotels_finder(params: HotelsInput):
-    '''
-    Find hotels using the Google Hotels engine.
-
-    Returns:
-        dict: Hotel search results.
-    '''
-
+@tool(args_schema=HotelsInput)
+def hotels_finder(q: str, check_in_date: str, check_out_date: str, sort_by: Optional[str] = None,
+                  adults: Optional[int] = 1, children: Optional[int] = 0,
+                  rooms: Optional[int] = 1, hotel_class: Optional[str] = None):
+    '''Find hotels using the Google Hotels engine.'''
     params = {
         'api_key': os.environ.get('SERPAPI_API_KEY'),
         'engine': 'google_hotels',
         'hl': 'en',
         'gl': 'us',
-        'q': params.q,
-        'check_in_date': params.check_in_date,
-        'check_out_date': params.check_out_date,
+        'q': q,
+        'check_in_date': check_in_date,
+        'check_out_date': check_out_date,
         'currency': 'USD',
-        'adults': params.adults,
-        'children': params.children,
-        'rooms': params.rooms,
-        'sort_by': params.sort_by,
-        'hotel_class': params.hotel_class
+        'adults': adults,
+        'children': children,
+        'rooms': rooms,
+        'sort_by': sort_by,
+        'hotel_class': hotel_class,
     }
-
-    search = serpapi.search(params)
-    results = search.data
-    return results['properties'][:5]
+    try:
+        search = serpapi.search(params)
+        return search.data['properties'][:5]
+    except Exception as e:
+        return str(e)
