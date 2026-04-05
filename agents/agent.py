@@ -14,6 +14,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
 from agents.tools.flights_finder import flights_finder
+from agents.tools.github_plugin import github_create_gist, github_create_issue, github_search_repos
 from agents.tools.hotels_finder import hotels_finder
 
 _ = load_dotenv()
@@ -36,9 +37,13 @@ TOOLS_SYSTEM_PROMPT = f"""You are a smart travel agency. Use the tools to look u
     for example for hotels-
     Rate: $581 per night
     Total: $3,488
+    You can also help users save and share their travel plans using GitHub:
+    - Create a GitHub Gist to share a travel itinerary via a link
+    - Create a GitHub Issue for trip planning and task tracking
+    - Search GitHub for travel-related open source tools and APIs
     """
 
-TOOLS = [flights_finder, hotels_finder]
+TOOLS = [flights_finder, hotels_finder, github_create_gist, github_create_issue, github_search_repos]
 
 EMAILS_SYSTEM_PROMPT = """Your task is to convert structured markdown-like text into a valid HTML email body.
 
