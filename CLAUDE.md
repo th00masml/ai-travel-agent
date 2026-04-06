@@ -59,6 +59,6 @@ Single-page app. `Agent` is initialized once in `st.session_state`. User submits
 
 ## Common Tasks
 
-- **Add a new tool**: Create file in `agents/tools/`, define Pydantic v1 input schema + wrapper schema, add `@tool(args_schema=...)` function, register in `TOOLS` list in `agents/agent.py`, and update `TOOLS_SYSTEM_PROMPT` if the LLM needs guidance on when to use it.
+- **Add a new tool**: Create a file in `agents/tools/`, define Pydantic v1 input schema + wrapper schema, add `@tool(args_schema=...)` function, register in `TOOLS` list in `agents/agent.py`, and update `TOOLS_SYSTEM_PROMPT` if the LLM needs guidance on when to use it.
 - **Modify agent behavior**: Edit `TOOLS_SYSTEM_PROMPT` or `EMAILS_SYSTEM_PROMPT` in `agents/agent.py`, or restructure the graph nodes/edges.
 - **Change the UI**: Edit `app.py` — Streamlit components, session state, form handling.
