@@ -1,38 +1,15 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Overview
 
-AI Travel Agent — a travel planning chatbot built with **LangGraph**, **LangChain**, and **Streamlit**. It finds flights and hotels via SerpAPI, orchestrates multi-step conversations with human-in-the-loop approval, and sends formatted HTML emails via SendGrid.
-
-## Repository Structure
-
-```
-ai-travel-agent/
-├── app.py                    # Streamlit UI and main entry point
-├── agents/
-│   ├── agent.py              # LangGraph agent logic (state graph, nodes, edges)
-│   └── tools/
-│       ├── flights_finder.py # Flight search tool (SerpAPI Google Flights)
-│       └── hotels_finder.py  # Hotel search tool (SerpAPI Google Hotels)
-├── pyproject.toml            # Poetry config and dependencies
-├── poetry.lock               # Locked dependency versions
-└── __init__.py               # Package marker (empty)
-```
-
-## Tech Stack
-
-- **Python** ^3.11
-- **LangGraph** ^0.2.0 — state-based agent orchestration
-- **LangChain** ^0.2.0 + **langchain-openai** ^0.1.0 — LLM framework
-- **Streamlit** ^1.38.0 — web UI
-- **SerpAPI** ^0.1.5 — Google Flights/Hotels data
-- **SendGrid** ^6.11.0 — email delivery
-- **python-dotenv** ^1.0.1 — environment variable loading
+AI Travel Agent — a travel planning chatbot built with LangGraph, LangChain, and Streamlit. It finds flights and hotels via SerpAPI, manages GitHub gists/issues via PyGithub, orchestrates multi-step conversations with human-in-the-loop approval, and sends formatted HTML emails via SendGrid.
 
 ## Setup and Running
 
 ```bash
-# Install dependencies (requires Poetry)
+# Install dependencies (requires Poetry and Python 3.11+)
 pyenv local 3.11.9
 poetry install --sync
 poetry shell
@@ -41,57 +18,47 @@ poetry shell
 streamlit run app.py
 ```
 
+No test framework, linter, or CI/CD pipeline is configured.
+
 ## Environment Variables
 
-**Required:**
-| Variable | Purpose |
-|---|---|
-| `OPENAI_API_KEY` | OpenAI API key for GPT models |
-| `SERPAPI_API_KEY` | SerpAPI key for flight/hotel searches |
-| `SENDGRID_API_KEY` | SendGrid API key for email delivery |
-
-**Optional (LangChain tracing):**
-| Variable | Purpose |
-|---|---|
-| `LANGCHAIN_API_KEY` | LangChain observability |
-| `LANGCHAIN_TRACING_V2` | Set to `true` to enable tracing |
-| `LANGCHAIN_PROJECT` | Project name (default: `ai_travel_agent`) |
-
-**Set at runtime by the app:** `FROM_EMAIL`, `TO_EMAIL`, `EMAIL_SUBJECT`
+Create a `.env` file in the project root. Required: `OPENAI_API_KEY`, `SERPAPI_API_KEY`, `SENDGRID_API_KEY`. Optional: `GITHUB_TOKEN` (for gist/issue/repo-search tools), `LANGCHAIN_API_KEY`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT`. The app sets `FROM_EMAIL`, `TO_EMAIL`, `EMAIL_SUBJECT` at runtime from user input.
 
 ## Architecture
 
-### Agent Graph Flow
+### Agent Graph (agents/agent.py)
 
-1. **`call_tools_llm`** — Invokes GPT-4o with tool-calling to determine next action
-2. **`invoke_tools`** — Executes the selected tool (flights or hotels search)
-3. **`call_emails_llm`** — Generates HTML email content using GPT-4o (lower temperature)
-4. **`email_sender`** — Sends email via SendGrid (has `interrupt_before` for human approval)
+LangGraph `StateGraph` with state `AgentState(TypedDict)` containing `messages: Annotated[list[AnyMessage], operator.add]`.
 
-Conditional edges route between tool invocation and email generation based on LLM output.
+**Nodes:**
+1. `call_tools_llm` — GPT-4o with tool-calling; entry point. System prompt in `TOOLS_SYSTEM_PROMPT`.
+2. `invoke_tools` — Executes whichever tool the LLM selected from `TOOLS` list.
+3. `email_sender` — Separate GPT-4o call (low temperature) converts conversation to HTML email, sends via SendGrid. Has `interrupt_before` for human-in-the-loop approval.
 
-### Key Patterns
+**Edges:** Conditional from `call_tools_llm`: if tool calls exist -> `invoke_tools` -> loops back to `call_tools_llm`; if no tool calls -> `email_sender` -> END. Memory via `MemorySaver` checkpointer.
 
-- **State management**: `AgentState(TypedDict)` with `Annotated[list[AnyMessage], operator.add]`
-- **Human-in-the-loop**: `interrupt_before=['email_sender']` pauses for user confirmation
-- **Memory**: `MemorySaver` checkpointer for stateful multi-turn conversations
-- **Tool definitions**: `@tool(args_schema=...)` decorator with Pydantic v1 input models
-- **Dual LLM configs**: Tool-calling LLM vs email-generation LLM (different temperatures)
+### Tools (agents/tools/)
+
+Each tool follows the same pattern: Pydantic v1 input model (`from langchain.pydantic_v1 import BaseModel`), a wrapper schema class with a `params` field, and `@tool(args_schema=...)` decorator. All tools are registered in the `TOOLS` list in `agents/agent.py`.
+
+- `flights_finder.py` — SerpAPI Google Flights engine search
+- `hotels_finder.py` — SerpAPI Google Hotels engine search (returns top 5 results)
+- `github_plugin.py` — Three tools: `github_create_gist`, `github_create_issue`, `github_search_repos` (PyGithub)
+
+### Streamlit UI (app.py)
+
+Single-page app. `Agent` is initialized once in `st.session_state`. User submits a travel query, agent runs with a new `thread_id`, results display inline. Optional email form resumes the interrupted graph to send email.
 
 ## Code Conventions
 
-- **Naming**: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_CASE` for constants
-- **Imports**: `dotenv` loaded at module level; LangChain ecosystem imports grouped together
-- **Error handling**: try/except with `st.error()` for UI feedback; tools return error strings on failure
-- **Pylint**: Some pylint disable directives used inline (`# pylint: disable = ...`)
-- **No formatter or linter config**: No Black, Ruff, mypy, or similar tools configured
-
-## Testing
-
-No test framework or test files are currently configured. No CI/CD pipelines exist.
+- `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_CASE` for constants
+- `dotenv` loaded at module level in `agents/agent.py`
+- Tools return error strings on failure (try/except pattern)
+- Inline pylint disable directives used; no formatter or linter configured
+- Tool input schemas use Pydantic v1 via `langchain.pydantic_v1`, not `pydantic` directly
 
 ## Common Tasks
 
-- **Add a new tool**: Create a file in `agents/tools/`, define a Pydantic input schema and a `@tool`-decorated function, then register it in the `TOOLS` list in `agents/agent.py`
-- **Modify agent behavior**: Edit the system prompts (`TOOLS_SYSTEM_PROMPT`, `EMAILS_SYSTEM_PROMPT`) or the graph structure in `agents/agent.py`
-- **Change the UI**: Edit `app.py` (Streamlit components, session state, form handling)
+- **Add a new tool**: Create a file in `agents/tools/`, define Pydantic v1 input schema + wrapper schema, add `@tool(args_schema=...)` function, register in `TOOLS` list in `agents/agent.py`, and update `TOOLS_SYSTEM_PROMPT` if the LLM needs guidance on when to use it.
+- **Modify agent behavior**: Edit `TOOLS_SYSTEM_PROMPT` or `EMAILS_SYSTEM_PROMPT` in `agents/agent.py`, or restructure the graph nodes/edges.
+- **Change the UI**: Edit `app.py` — Streamlit components, session state, form handling.
